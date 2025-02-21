@@ -2,6 +2,8 @@
 #define LIB_UTILS_H
 
 
+// Protótipos das Funções
+
 
 
 #endif
