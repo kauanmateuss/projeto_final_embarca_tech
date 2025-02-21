@@ -55,7 +55,7 @@ target_include_directories(project PRIVATE
 
 # Add any user requested libraries
 target_link_libraries(project 
-        
+        hardware_pio
         )
 
 pico_add_extra_outputs(project)
