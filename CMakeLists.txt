@@ -63,6 +63,7 @@ target_link_libraries(project
         hardware_pio
         hardware_i2c
         hardware_pwm
+        hardware_timer
         )
 
 pico_add_extra_outputs(project)
