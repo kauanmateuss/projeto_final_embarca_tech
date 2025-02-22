@@ -135,6 +135,28 @@ Matriz_leds_config nove = {
     {{0.0, 0.0, 0.0}, {0.0, 0.05, 0.0}, {0.0, 0.05, 0.0}, {0.0, 0.05, 0.0}, {0.0, 0.0, 0.0}}, // Linha 4
 };
 
+Matriz_leds_config carinha_feliz = {
+    //   Coluna 0         Coluna 1         Coluna 2         Coluna 3         Coluna 4
+    // R    G    B      R    G    B      R    G    B      R    G    B      R    G    B
+    {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}}, // Linha 0
+    {{0.0, 0.0, 0.0}, {0.0, 0.05, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.05, 0.0}, {0.0, 0.0, 0.0}}, // Linha 1
+    {{0.0, 0.05, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.05, 0.0}}, // Linha 2
+    {{0.0, 0.0, 0.0}, {0.0, 0.05, 0.0}, {0.0, 0.05, 0.0}, {0.0, 0.05, 0.0}, {0.0, 0.0, 0.0}}, // Linha 3
+    {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}}, // Linha 4
+};
+
+
+Matriz_leds_config vermelho = {
+    //   Coluna 0         Coluna 1         Coluna 2         Coluna 3         Coluna 4
+    // R    G    B      R    G    B      R    G    B      R    G    B      R    G    B
+    {{0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}}, // Linha 0
+    {{0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}}, // Linha 1
+    {{0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}}, // Linha 2
+    {{0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}}, // Linha 3
+    {{0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}}, // Linha 4
+};
+
+
 Matriz_leds_config clear = {
     //   Coluna 0         Coluna 1         Coluna 2         Coluna 3         Coluna 4
     // R    G    B      R    G    B      R    G    B      R    G    B      R    G    B
@@ -183,12 +205,12 @@ char *sorteio[8] = {
 
 char *aperteA[8] = {
     "===============",
+    "=BOTAO A:MUDAR=",
+    "=NUMERO       =",
     "=             =",
-    "=   PRECIONE  =",
-    "=  O BOTAO A  =",
-    "=  PARA MUDAR =",
-    "=   O NUMERO  =",
-    "=             =",
+    "=BOTAO B:     =",
+    "=CONFIRMA O   =",
+    "=NUMERO       =",
     "==============="
 };
 
@@ -265,6 +287,30 @@ bool mensagem_inicio_callback(struct repeating_timer *){
     int y = 0;
     for(uint i = 0; i < count_of(aperte); i++){
         ssd1306_draw_string(ssd, 5, y, aperte[i]);
+        y += 8;
+    }
+    render_on_display(ssd, &frame_area);
+
+    return false;  // para execultar só uma vez
+}
+
+// Função callback para temporizador
+bool menssagem_aperteA_callback(struct repeating_timer *){
+    struct render_area frame_area = {
+        start_column : 0,
+        end_column : ssd1306_width - 1,
+        start_page : 0,
+        end_page : ssd1306_n_pages - 1
+    };
+    calculate_render_area_buffer_length(&frame_area);
+
+    uint8_t ssd[ssd1306_buffer_length];
+    memset(ssd, 0, ssd1306_buffer_length);
+
+    // Imprime mensagens
+    int y = 0;
+    for(uint i = 0; i < count_of(aperteA); i++){
+        ssd1306_draw_string(ssd, 5, y, aperteA[i]);
         y += 8;
     }
     render_on_display(ssd, &frame_area);
@@ -363,6 +409,8 @@ int main()
 void btn_pressed(uint gpio, uint32_t events){
     uint32_t current_time = to_ms_since_boot(get_absolute_time());
     
+    struct repeating_timer timer_msg;
+
     struct render_area frame_area = {
         start_column : 0,
         end_column : ssd1306_width - 1,
@@ -396,6 +444,9 @@ void btn_pressed(uint gpio, uint32_t events){
             y += 8;
         }
         render_on_display(ssd, &frame_area);
+
+        // Chama o temporizador com a mensagem
+        add_repeating_timer_ms(2000, menssagem_aperteA_callback, NULL, &timer_msg);
 
     }
     // Debounce btn A
