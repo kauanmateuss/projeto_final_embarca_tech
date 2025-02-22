@@ -363,25 +363,6 @@ void beep_erro(){
     tocar_tom(700, 150);
 }
 
-bool timer_callback(struct repeating_timer *){
-    // verificando qual o som tocar
-    if(tocar_tom_inicio){
-        beep_inicio();
-        tocar_tom_inicio = false;
-    }
-
-    if(tocar_tom_vitoria){
-        beep_vitoria();
-        tocar_tom_vitoria = false;
-    }
-
-    if(tocar_tom_erro){
-        beep_erro();
-        tocar_tom_erro = false;
-    }
-
-    return false;
-}
 
 // Protótipos das funções
 void btn_pressed(uint gpio, uint32_t events);
@@ -392,14 +373,14 @@ int main()
     stdio_init_all();
     srand(time(NULL));
 
+    inicia_buzzer();
+
     // Inicializa a semente do gerador de numeros aleatórios
     srand(time(NULL));
 
     // Inicialização das variáveis para trabalhar com a matriz de leds
     pio = pio0;
     sm = configurar_matriz(pio);
-
-    struct repeating_timer timer;
 
     // Inicialização dos gpios
     gpio_init(btnA_pin);
@@ -462,10 +443,30 @@ int main()
     gpio_set_irq_enabled_with_callback(btnB_pin, GPIO_IRQ_EDGE_FALL, true, &btn_pressed);
     gpio_set_irq_enabled_with_callback(btn_joy_pin, GPIO_IRQ_EDGE_FALL, true, &btn_pressed);
     
-    imprimir_desenho(zero, pio, sm);
+    // Começar com a matriz de led em zero
+    contador = 0;
+    imprimir_desenho(*numeros[contador], pio, sm);
 
+
+    // Laço principal
     while (true) {
-        sleep_ms(100);
+
+        // Verificando se as flag para tocar o tom foi chamada
+        if(tocar_tom_inicio){
+            beep_inicio();
+            tocar_tom_inicio = false;
+        }
+
+        if(tocar_tom_vitoria){
+            beep_vitoria();
+            tocar_tom_vitoria = false;
+        }
+
+        if(tocar_tom_erro){
+            beep_erro();
+            tocar_tom_erro = false;
+        }
+        sleep_ms(50);
     }
 }
 
@@ -476,7 +477,6 @@ void btn_pressed(uint gpio, uint32_t events){
     uint32_t current_time = to_ms_since_boot(get_absolute_time());
     
     struct repeating_timer timer_msg;
-    struct repeating_timer timer_tom;
 
     struct render_area frame_area = {
         start_column : 0,
@@ -499,7 +499,6 @@ void btn_pressed(uint gpio, uint32_t events){
 
         // Tocar musica de inicio
         tocar_tom_inicio = true;
-        add_repeating_timer_ms(100, timer_callback, NULL, &timer_tom);
 
         int y = 0;
         for(uint i = 0; i < count_of(sorteio); i++){
@@ -511,6 +510,8 @@ void btn_pressed(uint gpio, uint32_t events){
         // Chama o temporizador com a mensagem
         add_repeating_timer_ms(2000, menssagem_aperteA_callback, NULL, &timer_msg);
 
+        imprimir_desenho(zero, pio, sm);
+
     }
     // Debounce btn A
     else if(gpio == btnA_pin && (current_time - last_time_a) > 200){
@@ -519,6 +520,8 @@ void btn_pressed(uint gpio, uint32_t events){
 
         // Incrementa o contador
         contador = (contador + 1) % 10;
+
+        imprimir_desenho(*numeros[contador], pio, sm);
     }
     // debounce btn B
     else if(gpio == btnB_pin && (current_time - last_time_b) > 200){
@@ -536,7 +539,6 @@ void btn_pressed(uint gpio, uint32_t events){
             
             // tocar o tom da vitoria
             tocar_tom_vitoria = true;
-            add_repeating_timer_ms(100, timer_callback, NULL, &timer_tom);
 
             // Imprime a mensagem que ganhou
             int y = 0;
@@ -545,6 +547,10 @@ void btn_pressed(uint gpio, uint32_t events){
                 y += 8;
             }
             render_on_display(ssd, &frame_area);
+
+            // Printa a carinha feliz
+
+            imprimir_desenho(carinha_feliz, pio, sm);
 
             printf("VOCE GANHOU\n");
 
@@ -556,7 +562,6 @@ void btn_pressed(uint gpio, uint32_t events){
 
             // toca o tom do erro
             tocar_tom_erro = true;
-            add_repeating_timer_ms(100, timer_callback, NULL, &timer_tom);
 
             // Imprime a mensagem que é o numero é menor
             int y = 0;
@@ -571,7 +576,6 @@ void btn_pressed(uint gpio, uint32_t events){
         else{
             // tocar tom erro
             tocar_tom_erro = true;
-            add_repeating_timer_ms(100, timer_callback, NULL, &timer_tom);
 
             // Imprime a mensagem que é o numero é menor
             int y = 0;
@@ -584,9 +588,8 @@ void btn_pressed(uint gpio, uint32_t events){
             printf("NUMERO MAIOR\n");
         }
     }
-
-    imprimir_desenho(*numeros[contador], pio, sm);
 }
+
 
 void tocar_tom(uint16_t frequencia, uint16_t duracao){
     if(frequencia == 0){
