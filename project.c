@@ -17,27 +17,19 @@
 #define btnB_pin 6
 #define buzzerA_pin 21
 #define btn_joy_pin 22
+#define led_red_pin 13
+#define led_green_pin 11
 
 PIO pio;
 uint sm;
 
 volatile uint numero_sorteado = 0; 
-volatile uint contador = 0;
-volatile bool inicio_jogo = false;
-volatile uint tentativas = 0;  
-
-volatile bool tocar_tom_inicio = false;    // flag para tocar o som fora da interrupção
-volatile bool tocar_tom_vitoria = false;
-volatile bool tocar_tom_erro = false;
+volatile uint contador = 0; 
 
 // Pinos para o display
 const uint I2C_SDA = 14;
 const uint I2C_SCL = 15;
 
-// Variáveis para tratamento de debounce
-static volatile uint32_t last_time_a = 0;
-static volatile uint32_t last_time_b = 0;
-static volatile uint32_t last_time_joy = 0;
 
 // matrizes dos numeros para o display
 Matriz_leds_config zero = {
@@ -142,8 +134,8 @@ Matriz_leds_config nove = {
 Matriz_leds_config carinha_feliz = {
     //   Coluna 0         Coluna 1         Coluna 2         Coluna 3         Coluna 4
     // R    G    B      R    G    B      R    G    B      R    G    B      R    G    B
-    {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}}, // Linha 0
-    {{0.0, 0.0, 0.0}, {0.0, 0.05, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.05, 0.0}, {0.0, 0.0, 0.0}}, // Linha 1
+    {{0.0, 0.0, 0.0}, {0.0, 0.05, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.05, 0.0}, {0.0, 0.0, 0.0}}, // Linha 0
+    {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}}, // Linha 1
     {{0.0, 0.05, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.05, 0.0}}, // Linha 2
     {{0.0, 0.0, 0.0}, {0.0, 0.05, 0.0}, {0.0, 0.05, 0.0}, {0.0, 0.05, 0.0}, {0.0, 0.0, 0.0}}, // Linha 3
     {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}}, // Linha 4
@@ -274,54 +266,6 @@ char *menor[8] = {
     "==============="
 };
 
-// Função callback do temporizador para exibir mensagens
-bool mensagem_inicio_callback(struct repeating_timer *){
-    struct render_area frame_area = {
-        start_column : 0,
-        end_column : ssd1306_width - 1,
-        start_page : 0,
-        end_page : ssd1306_n_pages - 1
-    };
-    calculate_render_area_buffer_length(&frame_area);
-
-    uint8_t ssd[ssd1306_buffer_length];
-    memset(ssd, 0, ssd1306_buffer_length);
-
-    // Imprime mensagens
-    int y = 0;
-    for(uint i = 0; i < count_of(aperte); i++){
-        ssd1306_draw_string(ssd, 5, y, aperte[i]);
-        y += 8;
-    }
-    render_on_display(ssd, &frame_area);
-
-    return false;  // para execultar só uma vez
-}
-
-// Função callback para temporizador
-bool menssagem_aperteA_callback(struct repeating_timer *){
-    struct render_area frame_area = {
-        start_column : 0,
-        end_column : ssd1306_width - 1,
-        start_page : 0,
-        end_page : ssd1306_n_pages - 1
-    };
-    calculate_render_area_buffer_length(&frame_area);
-
-    uint8_t ssd[ssd1306_buffer_length];
-    memset(ssd, 0, ssd1306_buffer_length);
-
-    // Imprime mensagens
-    int y = 0;
-    for(uint i = 0; i < count_of(aperteA); i++){
-        ssd1306_draw_string(ssd, 5, y, aperteA[i]);
-        y += 8;
-    }
-    render_on_display(ssd, &frame_area);
-
-    return false;  // para execultar só uma vez
-}
-
 
 // funções para buzzer
 
@@ -363,34 +307,22 @@ void beep_erro(){
     tocar_tom(700, 150);
 }
 
-bool timer_callback(struct repeating_timer *){
-    // verificando qual o som tocar
-    if(tocar_tom_inicio){
-        beep_inicio();
-        tocar_tom_inicio = false;
-    }
-
-    if(tocar_tom_vitoria){
-        beep_vitoria();
-        tocar_tom_vitoria = false;
-    }
-
-    if(tocar_tom_erro){
-        beep_erro();
-        tocar_tom_erro = false;
-    }
-
-    return false;
+// Função para tratamento de debounce simples
+int ler_btn_com_debounce(uint pin){
+    int btn_state = gpio_get(pin);
+    sleep_ms(100);
+    return btn_state == 0;
 }
 
-// Protótipos das funções
-void btn_pressed(uint gpio, uint32_t events);
 
 
 int main()
 {
     stdio_init_all();
     srand(time(NULL));
+
+    // Inicializando o buzzer 
+    inicia_buzzer();
 
     // Inicializa a semente do gerador de numeros aleatórios
     srand(time(NULL));
@@ -400,6 +332,11 @@ int main()
     sm = configurar_matriz(pio);
 
     // Inicialização dos gpios
+    gpio_init(led_red_pin);
+    gpio_init(led_green_pin);
+    gpio_set_dir(led_red_pin, GPIO_OUT);
+    gpio_set_dir(led_green_pin, GPIO_OUT);
+
     gpio_init(btnA_pin);
     gpio_set_dir(btnA_pin, GPIO_IN);
     gpio_init(btnB_pin);
@@ -436,10 +373,14 @@ int main()
     memset(ssd, 0, ssd1306_buffer_length);
     render_on_display(ssd, &frame_area);
     
-    
-    imprimir_desenho(zero, pio, sm);
 
+
+    // LAÇO PRINCIPAL
     while (true) {
+        // inicia com o led vermelho acesso para mostrar que não comecou a partida
+        gpio_put(led_red_pin, 1);
+        gpio_put(led_green_pin, 0);
+
         // Imprimir a mensagem de inicio
         int y = 0;
         for (uint i = 0; i < count_of(inicio); i++)
@@ -461,14 +402,32 @@ int main()
         render_on_display(ssd, &frame_area);
 
         // só vai passar do laço se clicar no botão
-        while(!gpio_get(btn_joy_pin)){
+        while(!ler_btn_com_debounce(btn_joy_pin)){
             sleep_ms(100);  // pra não sobrecarregar
         }
+
+        // Led fica verde para mostrar que o jogo começou
+        gpio_put(led_red_pin, 0);
+        gpio_put(led_green_pin, 1);
+
+        // Iniciar a matriz de leds com o zero
+        contador = 0;
+        imprimir_desenho(*numeros[contador], pio, sm);
+
+        // Mensagem de partida iniciada
+        y = 0;
+        for(uint i = 0; i < count_of(iniciado); i++){
+            ssd1306_draw_string(ssd, 5, y, iniciado[i]);
+            y += 8;
+        }
+        render_on_display(ssd, &frame_area);
+        beep_inicio();
+
+        sleep_ms(2000);
 
         // quando apertar o botão, sortear o numero, mostrar as mensagens e tocar o som
         numero_sorteado = rand() % 10;
 
-        beep_inicio();
         y = 0;
         for(uint i = 0; i < count_of(sorteio); i++){
             ssd1306_draw_string(ssd, 5, y, sorteio[i]);
@@ -477,7 +436,7 @@ int main()
         render_on_display(ssd, &frame_area);
 
         // Mensagem de orientação dos botões
-        int y = 0;
+        y = 0;
         for(uint i = 0; i < count_of(aperteA); i++){
             ssd1306_draw_string(ssd, 5, y, aperteA[i]);
             y += 8;
@@ -486,8 +445,82 @@ int main()
 
         // Laço para implementar a lógica
         while(true){
-            // verificando se clicou no botão
-            
+            // verificando se clicou no botão A
+            if(ler_btn_com_debounce(btnA_pin)){
+                contador = (contador + 1) % 10; // incrementa a matriz de led
+                sleep_ms(100);
+            }
+
+            // Imprimindo os numeros na matriz de leds
+            imprimir_desenho(*numeros[contador], pio, sm);
+
+            // Verificando se clicou no botão B
+            if(ler_btn_com_debounce(btnB_pin)){
+
+                // Verificando se o numero escolhido quando clicou no B  é igual ao numero sorteado
+                if(numero_sorteado == contador){
+                    // se for igual, mostra os parabens e tocar a musica de vitória
+
+                    // Imprime uma carinha feliz nos leds
+                    imprimir_desenho(carinha_feliz, pio, sm);
+
+                    // Imprime a mensagem que ganhou
+                    int y = 0;
+                    for(uint i = 0; i < count_of(acertou); i++){
+                        ssd1306_draw_string(ssd, 5, y, acertou[i]);
+                        y += 8;
+                    }
+                    render_on_display(ssd, &frame_area);
+
+                    beep_vitoria();
+
+                    printf("VOCE GANHOU\n");
+                    sleep_ms(2000);
+                    break;
+
+                }
+                else if (contador > numero_sorteado){
+
+                    // toca o tom do erro
+                    beep_erro();
+
+                    // Imprime a mensagem que é o numero é menor
+                    int y = 0;
+                    for(uint i = 0; i < count_of(menor); i++){
+                        ssd1306_draw_string(ssd, 5, y, menor[i]);
+                        y += 8;
+                    }
+                    render_on_display(ssd, &frame_area);
+                    
+                    // Os leds ficam vermelhos
+                    imprimir_desenho(vermelho, pio, sm);
+                    sleep_ms(300);
+                    imprimir_desenho(clear, pio, sm);
+
+                    printf("NUMERO MENOR\n");
+                }
+                else{
+                    // tocar tom erro
+                    beep_erro();
+
+                    // Imprime a mensagem que é o numero é menor
+                    int y = 0;
+                    for(uint i = 0; i < count_of(maior); i++){
+                        ssd1306_draw_string(ssd, 5, y, maior[i]);
+                        y += 8;
+                    }
+                    render_on_display(ssd, &frame_area);
+                    
+                    // Os leds ficam vermelhos
+                    imprimir_desenho(vermelho, pio, sm);
+                    sleep_ms(300);
+                    imprimir_desenho(clear, pio, sm);
+
+                    printf("NUMERO MAIOR\n");
+                }
+
+                sleep_ms(100);
+            }
         }
 
 
@@ -498,122 +531,6 @@ int main()
 
 
 // Corpos das funções
-
-void btn_pressed(uint gpio, uint32_t events){
-    uint32_t current_time = to_ms_since_boot(get_absolute_time());
-    
-    struct repeating_timer timer_msg;
-    struct repeating_timer timer_tom;
-
-    struct render_area frame_area = {
-        start_column : 0,
-        end_column : ssd1306_width - 1,
-        start_page : 0,
-        end_page : ssd1306_n_pages - 1
-    };
-    calculate_render_area_buffer_length(&frame_area);
-
-    uint8_t ssd[ssd1306_buffer_length];
-    memset(ssd, 0, ssd1306_buffer_length);
-
-    // debounce
-    if(gpio == btn_joy_pin && (current_time - last_time_joy) > 200){
-        last_time_joy = current_time;
-        inicio_jogo = true;
-    
-        // Gerar um novo numero aleatorio
-        numero_sorteado = rand() % 10;
-
-        // Tocar musica de inicio
-        tocar_tom_inicio = true;
-        add_repeating_timer_ms(100, timer_callback, NULL, &timer_tom);
-
-        int y = 0;
-        for(uint i = 0; i < count_of(sorteio); i++){
-            ssd1306_draw_string(ssd, 5, y, sorteio[i]);
-            y += 8;
-        }
-        render_on_display(ssd, &frame_area);
-
-        // Chama o temporizador com a mensagem
-        add_repeating_timer_ms(2000, menssagem_aperteA_callback, NULL, &timer_msg);
-
-    }
-    // Debounce btn A
-    else if(gpio == btnA_pin && (current_time - last_time_a) > 200){
-        last_time_a = current_time;
-        if(!inicio_jogo) return;
-
-        // Incrementa o contador
-        contador = (contador + 1) % 10;
-    }
-    // debounce btn B
-    else if(gpio == btnB_pin && (current_time - last_time_b) > 200){
-        last_time_b = current_time;
-        struct repeating_timer timer;
-
-        tentativas++;
-
-        // caso seja pressionado sem ter inicado a partida, retornar
-        if(!inicio_jogo) return;
-        
-        
-        // verificando o numero que o usuario escolheu com o sorteado
-        if(contador == numero_sorteado){
-            
-            // tocar o tom da vitoria
-            tocar_tom_vitoria = true;
-            add_repeating_timer_ms(100, timer_callback, NULL, &timer_tom);
-
-            // Imprime a mensagem que ganhou
-            int y = 0;
-            for(uint i = 0; i < count_of(acertou); i++){
-                ssd1306_draw_string(ssd, 5, y, acertou[i]);
-                y += 8;
-            }
-            render_on_display(ssd, &frame_area);
-
-            printf("VOCE GANHOU\n");
-
-            add_repeating_timer_ms(3000, mensagem_inicio_callback, NULL, &timer);
-
-            inicio_jogo = false;
-        }
-        else if (contador > numero_sorteado){
-
-            // toca o tom do erro
-            tocar_tom_erro = true;
-            add_repeating_timer_ms(100, timer_callback, NULL, &timer_tom);
-
-            // Imprime a mensagem que é o numero é menor
-            int y = 0;
-            for(uint i = 0; i < count_of(menor); i++){
-                ssd1306_draw_string(ssd, 5, y, menor[i]);
-                y += 8;
-            }
-            render_on_display(ssd, &frame_area);
-
-            printf("NUMERO MENOR\n");
-        }
-        else{
-            // tocar tom erro
-            tocar_tom_erro = true;
-            add_repeating_timer_ms(100, timer_callback, NULL, &timer_tom);
-
-            // Imprime a mensagem que é o numero é menor
-            int y = 0;
-            for(uint i = 0; i < count_of(maior); i++){
-                ssd1306_draw_string(ssd, 5, y, maior[i]);
-                y += 8;
-            }
-            render_on_display(ssd, &frame_area);
-
-            printf("NUMERO MAIOR\n");
-        }
-    }
-
-    imprimir_desenho(*numeros[contador], pio, sm);
-}
 
 void tocar_tom(uint16_t frequencia, uint16_t duracao){
     if(frequencia == 0){
