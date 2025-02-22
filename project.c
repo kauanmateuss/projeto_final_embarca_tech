@@ -26,6 +26,10 @@ volatile uint contador = 0;
 volatile bool inicio_jogo = false;
 volatile uint tentativas = 0;  
 
+volatile bool tocar_tom_inicio = false;    // flag para tocar o som fora da interrupção
+volatile bool tocar_tom_vitoria = false;
+volatile bool tocar_tom_erro = false;
+
 // Pinos para o display
 const uint I2C_SDA = 14;
 const uint I2C_SCL = 15;
@@ -318,8 +322,70 @@ bool menssagem_aperteA_callback(struct repeating_timer *){
     return false;  // para execultar só uma vez
 }
 
+
+// funções para buzzer
+
+// Configura o PWM para buzzer
+void inicia_buzzer(){
+    gpio_set_function(buzzerA_pin, GPIO_FUNC_PWM);
+    uint slice_num = pwm_gpio_to_slice_num(buzzerA_pin);
+    // iniciar com o pwm desligado
+    pwm_set_enabled(slice_num, false);
+}
+
+// Função para tocar um som
+void tocar_tom(uint16_t frequencia, uint16_t duracao);
+
+// Funções das melodias
+void beep_inicio(){
+    tocar_tom(880, 150);
+    tocar_tom(660, 150);
+    tocar_tom(990, 200);
+    sleep_ms(100);
+    tocar_tom(1100, 250); // Finaliza com tom alto e alegre
+    sleep_ms(200);
+    tocar_tom(660, 100);
+    tocar_tom(880, 300);
+}
+
+void beep_vitoria(){
+    tocar_tom(880, 150);
+    tocar_tom(988, 150);
+    tocar_tom(1046, 150);
+    tocar_tom(1174, 200);
+    sleep_ms(100);
+    tocar_tom(1568, 250);
+}
+
+void beep_erro(){
+    tocar_tom(800, 100);
+    tocar_tom(600, 100);
+    tocar_tom(700, 150);
+}
+
+bool timer_callback(struct repeating_timer *){
+    // verificando qual o som tocar
+    if(tocar_tom_inicio){
+        beep_inicio();
+        tocar_tom_inicio = false;
+    }
+
+    if(tocar_tom_vitoria){
+        beep_vitoria();
+        tocar_tom_vitoria = false;
+    }
+
+    if(tocar_tom_erro){
+        beep_erro();
+        tocar_tom_erro = false;
+    }
+
+    return false;
+}
+
 // Protótipos das funções
 void btn_pressed(uint gpio, uint32_t events);
+
 
 int main()
 {
@@ -381,7 +447,7 @@ int main()
     }
     render_on_display(ssd, &frame_area);
 
-    sleep_ms(1000);
+    sleep_ms(2000);
     
     y = 0;
     for (uint i = 0; i < count_of(aperte); i++)
@@ -410,6 +476,7 @@ void btn_pressed(uint gpio, uint32_t events){
     uint32_t current_time = to_ms_since_boot(get_absolute_time());
     
     struct repeating_timer timer_msg;
+    struct repeating_timer timer_tom;
 
     struct render_area frame_area = {
         start_column : 0,
@@ -429,14 +496,10 @@ void btn_pressed(uint gpio, uint32_t events){
     
         // Gerar um novo numero aleatorio
         numero_sorteado = rand() % 10;
-    
-        // Imprime mensagens
-        // int y = 0;
-        // for(uint i = 0; i < count_of(iniciado); i++){
-        //     ssd1306_draw_string(ssd, 5, y, iniciado[i]);
-        //     y += 8;
-        // }
-        // render_on_display(ssd, &frame_area);
+
+        // Tocar musica de inicio
+        tocar_tom_inicio = true;
+        add_repeating_timer_ms(100, timer_callback, NULL, &timer_tom);
 
         int y = 0;
         for(uint i = 0; i < count_of(sorteio); i++){
@@ -470,6 +533,10 @@ void btn_pressed(uint gpio, uint32_t events){
         
         // verificando o numero que o usuario escolheu com o sorteado
         if(contador == numero_sorteado){
+            
+            // tocar o tom da vitoria
+            tocar_tom_vitoria = true;
+            add_repeating_timer_ms(100, timer_callback, NULL, &timer_tom);
 
             // Imprime a mensagem que ganhou
             int y = 0;
@@ -486,6 +553,11 @@ void btn_pressed(uint gpio, uint32_t events){
             inicio_jogo = false;
         }
         else if (contador > numero_sorteado){
+
+            // toca o tom do erro
+            tocar_tom_erro = true;
+            add_repeating_timer_ms(100, timer_callback, NULL, &timer_tom);
+
             // Imprime a mensagem que é o numero é menor
             int y = 0;
             for(uint i = 0; i < count_of(menor); i++){
@@ -497,6 +569,10 @@ void btn_pressed(uint gpio, uint32_t events){
             printf("NUMERO MENOR\n");
         }
         else{
+            // tocar tom erro
+            tocar_tom_erro = true;
+            add_repeating_timer_ms(100, timer_callback, NULL, &timer_tom);
+
             // Imprime a mensagem que é o numero é menor
             int y = 0;
             for(uint i = 0; i < count_of(maior); i++){
@@ -511,3 +587,24 @@ void btn_pressed(uint gpio, uint32_t events){
 
     imprimir_desenho(*numeros[contador], pio, sm);
 }
+
+void tocar_tom(uint16_t frequencia, uint16_t duracao){
+    if(frequencia == 0){
+        pwm_set_enabled(pwm_gpio_to_slice_num(buzzerA_pin), false);
+        sleep_ms(duracao);
+        return;
+    }
+
+    uint slice_num = pwm_gpio_to_slice_num(buzzerA_pin);
+    float clock_div = 4.0f;
+    uint32_t wrap = (125000000 / (clock_div * frequencia)) - 1;
+
+    pwm_set_clkdiv(slice_num, clock_div);
+    pwm_set_wrap(slice_num, wrap);
+    pwm_set_gpio_level(buzzerA_pin, wrap / 2);
+    
+    pwm_set_enabled(slice_num, true);
+    sleep_ms(duracao);
+    pwm_set_enabled(slice_num, false);
+}
+
