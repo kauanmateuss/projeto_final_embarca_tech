@@ -399,8 +399,6 @@ int main()
     pio = pio0;
     sm = configurar_matriz(pio);
 
-    struct repeating_timer timer;
-
     // Inicialização dos gpios
     gpio_init(btnA_pin);
     gpio_set_dir(btnA_pin, GPIO_IN);
@@ -438,36 +436,65 @@ int main()
     memset(ssd, 0, ssd1306_buffer_length);
     render_on_display(ssd, &frame_area);
     
-    // Imprimir a mensagem de inicio
-    int y = 0;
-    for (uint i = 0; i < count_of(inicio); i++)
-    {
-        ssd1306_draw_string(ssd, 5, y, inicio[i]);
-        y += 8;
-    }
-    render_on_display(ssd, &frame_area);
-
-    sleep_ms(2000);
-    
-    y = 0;
-    for (uint i = 0; i < count_of(aperte); i++)
-    {
-        ssd1306_draw_string(ssd, 5, y, aperte[i]);
-        y += 8;
-    }
-    render_on_display(ssd, &frame_area);
-
-    // Interrupções
-    gpio_set_irq_enabled_with_callback(btnA_pin, GPIO_IRQ_EDGE_FALL, true, &btn_pressed);
-    gpio_set_irq_enabled_with_callback(btnB_pin, GPIO_IRQ_EDGE_FALL, true, &btn_pressed);
-    gpio_set_irq_enabled_with_callback(btn_joy_pin, GPIO_IRQ_EDGE_FALL, true, &btn_pressed);
     
     imprimir_desenho(zero, pio, sm);
 
     while (true) {
+        // Imprimir a mensagem de inicio
+        int y = 0;
+        for (uint i = 0; i < count_of(inicio); i++)
+        {
+            ssd1306_draw_string(ssd, 5, y, inicio[i]);
+            y += 8;
+        }
+        render_on_display(ssd, &frame_area);
+
+        sleep_ms(2000);
+        
+        // Mensagem pra apertar o joy
+        y = 0;
+        for (uint i = 0; i < count_of(aperte); i++)
+        {
+            ssd1306_draw_string(ssd, 5, y, aperte[i]);
+            y += 8;
+        }
+        render_on_display(ssd, &frame_area);
+
+        // só vai passar do laço se clicar no botão
+        while(!gpio_get(btn_joy_pin)){
+            sleep_ms(100);  // pra não sobrecarregar
+        }
+
+        // quando apertar o botão, sortear o numero, mostrar as mensagens e tocar o som
+        numero_sorteado = rand() % 10;
+
+        beep_inicio();
+        y = 0;
+        for(uint i = 0; i < count_of(sorteio); i++){
+            ssd1306_draw_string(ssd, 5, y, sorteio[i]);
+            y += 8;
+        }
+        render_on_display(ssd, &frame_area);
+
+        // Mensagem de orientação dos botões
+        int y = 0;
+        for(uint i = 0; i < count_of(aperteA); i++){
+            ssd1306_draw_string(ssd, 5, y, aperteA[i]);
+            y += 8;
+        }
+        render_on_display(ssd, &frame_area);
+
+        // Laço para implementar a lógica
+        while(true){
+            // verificando se clicou no botão
+            
+        }
+
+
+
         sleep_ms(100);
     }
-}
+}   // ============================== FIM MAIN ===========================
 
 
 // Corpos das funções
