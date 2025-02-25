@@ -61,6 +61,7 @@ target_include_directories(project PRIVATE
 # Add any user requested libraries
 target_link_libraries(project 
         hardware_pio
+        feature/logica3
         hardware_i2c
         hardware_pwm
         hardware_timer

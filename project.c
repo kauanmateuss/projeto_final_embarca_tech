@@ -314,6 +314,10 @@ int ler_btn_com_debounce(uint pin){
     return btn_state == 0;
 }
 
+// Declarações de variáveis globais e macros
+
+#define btnA_pin 5
+#define btnB_pin 6
 
 
 int main()
