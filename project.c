@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
-#include "hardware/clocks.h"
 #include "hardware/pio.h"
 #include "hardware/pwm.h"
 #include "hardware/i2c.h"
@@ -10,11 +9,9 @@
 #include <stdlib.h>
 #include <time.h>
 #include "hardware/timer.h"
+#include "hardware/clocks.h"
 
-// Definição de variaveis globais e macros
-
-#define btnA_pin 5
-#define btnB_pin 6
+// Declarações de variáveis globais e macros
 #define buzzerA_pin 21
 #define btn_joy_pin 22
 #define led_red_pin 13
@@ -313,12 +310,6 @@ int ler_btn_com_debounce(uint pin){
     sleep_ms(100);
     return btn_state == 0;
 }
-
-// Declarações de variáveis globais e macros
-
-#define btnA_pin 5
-#define btnB_pin 6
-
 
 int main()
 {
