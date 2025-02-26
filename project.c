@@ -9,6 +9,7 @@
 #include "string.h"
 #include <stdlib.h>
 #include <time.h>
+#include "hardware/timer.h"
 
 // Definição de variaveis globais e macros
 
@@ -16,21 +17,19 @@
 #define btnB_pin 6
 #define buzzerA_pin 21
 #define btn_joy_pin 22
+#define led_red_pin 13
+#define led_green_pin 11
 
 PIO pio;
 uint sm;
 
-uint numero_sorteado; 
-uint contador;
+volatile uint numero_sorteado = 0; 
+volatile uint contador = 0; 
 
 // Pinos para o display
 const uint I2C_SDA = 14;
 const uint I2C_SCL = 15;
 
-// Variáveis para tratamento de debounce
-static volatile uint32_t last_time_a = 0;
-static volatile uint32_t last_time_b = 0;
-static volatile uint32_t last_time_joy = 0;
 
 // matrizes dos numeros para o display
 Matriz_leds_config zero = {
@@ -132,6 +131,28 @@ Matriz_leds_config nove = {
     {{0.0, 0.0, 0.0}, {0.0, 0.05, 0.0}, {0.0, 0.05, 0.0}, {0.0, 0.05, 0.0}, {0.0, 0.0, 0.0}}, // Linha 4
 };
 
+Matriz_leds_config carinha_feliz = {
+    //   Coluna 0         Coluna 1         Coluna 2         Coluna 3         Coluna 4
+    // R    G    B      R    G    B      R    G    B      R    G    B      R    G    B
+    {{0.0, 0.0, 0.0}, {0.0, 0.05, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.05, 0.0}, {0.0, 0.0, 0.0}}, // Linha 0
+    {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}}, // Linha 1
+    {{0.0, 0.05, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.05, 0.0}}, // Linha 2
+    {{0.0, 0.0, 0.0}, {0.0, 0.05, 0.0}, {0.0, 0.05, 0.0}, {0.0, 0.05, 0.0}, {0.0, 0.0, 0.0}}, // Linha 3
+    {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}}, // Linha 4
+};
+
+
+Matriz_leds_config vermelho = {
+    //   Coluna 0         Coluna 1         Coluna 2         Coluna 3         Coluna 4
+    // R    G    B      R    G    B      R    G    B      R    G    B      R    G    B
+    {{0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}}, // Linha 0
+    {{0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}}, // Linha 1
+    {{0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}}, // Linha 2
+    {{0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}}, // Linha 3
+    {{0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}, {0.05, 0.0, 0.0}}, // Linha 4
+};
+
+
 Matriz_leds_config clear = {
     //   Coluna 0         Coluna 1         Coluna 2         Coluna 3         Coluna 4
     // R    G    B      R    G    B      R    G    B      R    G    B      R    G    B
@@ -148,76 +169,164 @@ Matriz_leds_config *numeros[] = {&zero, &um, &dois, &tres, &quatro, &cinco, &sei
 char *inicio[8] = {
     "===============",
     "               ",
-    " BEM VINDO AO  ",
     "               ",
-    " JOGO ADIVINHA ",
+    "     JOGO      ",
     "               ",
-    "               ",
-    "==============="
-};
-
-char *instrucaoA[8] = {
-    "===============",
-    "               ",
-    "  O BOTAO A    ",
-    "  INCREMENTA   ",
-    " UM NUMERO NA  ",
-    " MATRIZ DE LEDS",
+    "  ADIVINHACAO  ",
     "               ",
     "==============="
 };
 
-char *instrucaoB[8] = {
+char *aperte[8] = {
     "===============",
-    "               ",
-    "  O BOTAO B    ",
-    "  DECREMENTA   ",
-    " UM NUMERO NA  ",
-    " MATRIZ DE LEDS",
-    "               ",
-    "==============="
-};
-
-char *instrucaoC[8] = {
-    "===============",
-    "               ",
-    "O BOTAO JOYSTIK",
-    "CONFIRMA O     ",
-    "NUMERO DA      ",
-    "MATRIZ DE LEDS ",
-    "               ",
-    "==============="
-};
-
-char *opcao[8] = {
-    "===============",
-    "               ",
-    " SELECIONE UM  ",
-    "    NUMERO     ",
-    "   DE 0 A 9    ",
-    "   NOS LEDs    ",
-    "               ",
+    "=             =",
+    "=   PRECIONE  =",
+    "=      O      =",
+    "=    BOTAO    =",
+    "= DO JOYSTICK =",
+    "=             =",
     "==============="
 };
 
 char *sorteio[8] = {
     "===============",
-    "               ",
-    "NUMERO DE 0 A 9",
-    "               ",
-    "   SORTEADO    ",
-    "               ",
-    "               ",
+    "=             =",
+    "=    NUMERO   =",
+    "=      DE     =",
+    "=    0 A 9    =",
+    "=   SORTEADO  =",
+    "=             =",
     "==============="
 };
 
-// Funções de callback para interrupção dos butões
-void gpio_callback_btn(uint gpio, uint32_t events);
+char *aperteA[8] = {
+    "===============",
+    "=BOTAO A:MUDAR=",
+    "=NUMERO       =",
+    "=             =",
+    "=BOTAO B:     =",
+    "=CONFIRMA O   =",
+    "=NUMERO       =",
+    "==============="
+};
+
+char *aperteB[8] = {
+    "===============",
+    "=             =",
+    "= PRECIONE O  =",
+    "= BOTAO B PARA=",
+    "= ESCOLHER O  =",
+    "= NUMERO      =",
+    "=             =",
+    "==============="
+};
+
+
+char *iniciado[8] = {
+    "===============",
+    "=             =",
+    "=   PARTIDA   =",
+    "=             =",
+    "=  INICIADA!  =",
+    "=             =",
+    "=             =",
+    "==============="
+};
+
+char *maior[8] = {
+    "===============",
+    "=             =",
+    "=    NUMERO   =",
+    "=             =",
+    "=    MAIOR!   =",
+    "=             =",
+    "=             =",
+    "==============="
+};
+
+char *acertou[8] = {
+    "===============",
+    "=             =",
+    "=   PARABENS  =",
+    "=             =",
+    "=   ACERTOU!  =",
+    "=             =",
+    "=             =",
+    "==============="
+};
+
+char *menor[8] = {
+    "===============",
+    "=             =",
+    "=    NUMERO   =",
+    "=             =",
+    "=    MENOR!   =",
+    "=             =",
+    "=             =",
+    "==============="
+};
+
+
+// funções para buzzer
+
+// Configura o PWM para buzzer
+void inicia_buzzer(){
+    gpio_set_function(buzzerA_pin, GPIO_FUNC_PWM);
+    uint slice_num = pwm_gpio_to_slice_num(buzzerA_pin);
+    // iniciar com o pwm desligado
+    pwm_set_enabled(slice_num, false);
+}
+
+// Função para tocar um som
+void tocar_tom(uint16_t frequencia, uint16_t duracao);
+
+// Funções das melodias
+void beep_inicio(){
+    tocar_tom(880, 150);
+    tocar_tom(660, 150);
+    tocar_tom(990, 200);
+    sleep_ms(100);
+    tocar_tom(1100, 250); // Finaliza com tom alto e alegre
+    sleep_ms(200);
+    tocar_tom(660, 100);
+    tocar_tom(880, 300);
+}
+
+void beep_vitoria(){
+    tocar_tom(880, 150);
+    tocar_tom(988, 150);
+    tocar_tom(1046, 150);
+    tocar_tom(1174, 200);
+    sleep_ms(100);
+    tocar_tom(1568, 250);
+}
+
+void beep_erro(){
+    tocar_tom(800, 100);
+    tocar_tom(600, 100);
+    tocar_tom(700, 150);
+}
+
+// Função para tratamento de debounce simples
+int ler_btn_com_debounce(uint pin){
+    int btn_state = gpio_get(pin);
+    sleep_ms(100);
+    return btn_state == 0;
+}
+
+// Declarações de variáveis globais e macros
+
+#define btnA_pin 5
+#define btnB_pin 6
 
 
 int main()
 {
     stdio_init_all();
+    srand(time(NULL));
+
+    // Inicializando o buzzer 
+    inicia_buzzer();
 
     // Inicializa a semente do gerador de numeros aleatórios
     srand(time(NULL));
@@ -227,6 +336,11 @@ int main()
     sm = configurar_matriz(pio);
 
     // Inicialização dos gpios
+    gpio_init(led_red_pin);
+    gpio_init(led_green_pin);
+    gpio_set_dir(led_red_pin, GPIO_OUT);
+    gpio_set_dir(led_green_pin, GPIO_OUT);
+
     gpio_init(btnA_pin);
     gpio_set_dir(btnA_pin, GPIO_IN);
     gpio_init(btnB_pin);
@@ -262,143 +376,184 @@ int main()
     uint8_t ssd[ssd1306_buffer_length];
     memset(ssd, 0, ssd1306_buffer_length);
     render_on_display(ssd, &frame_area);
-
-    // Imprimir a mensagem de inicio
-    int y = 0;
-    for (uint i = 0; i < count_of(inicio); i++)
-    {
-        ssd1306_draw_string(ssd, 5, y, inicio[i]);
-        y += 8;
-    }
-    render_on_display(ssd, &frame_area);
-
-    sleep_ms(1000);
-
-    // Imprimir as instruções
-    y = 0;
-    for(uint i = 0; i < count_of(instrucaoA); i++){
-        ssd1306_draw_string(ssd, 5, y, instrucaoA[i]);
-        y += 8;
-    }
-    render_on_display(ssd, &frame_area);
-
-    sleep_ms(1000);
-
-    y = 0;
-    for(uint i = 0; i < count_of(instrucaoB); i++){
-        ssd1306_draw_string(ssd, 5, y, instrucaoB[i]);
-        y += 8;
-    }
-    render_on_display(ssd, &frame_area);
-
-    sleep_ms(1000);
-
-    y = 0;
-    for(uint i = 0; i < count_of(instrucaoC); i++){
-        ssd1306_draw_string(ssd, 5, y, instrucaoC[i]);
-        y += 8;
-    }
-    render_on_display(ssd, &frame_area);
-
-    sleep_ms(1000);
-
-    // Sorteio de um numero aleatorio no intervalo de 0 a 9
-    numero_sorteado = rand() % 10;
-
-    printf("NUmero sorteado: %d\n", numero_sorteado);
-
-    y = 0;
-    for(uint i = 0; i < count_of(sorteio); i++){
-        ssd1306_draw_string(ssd, 5, y, sorteio[i]);
-        y += 8;
-    }
-    render_on_display(ssd, &frame_area);
-
-    sleep_ms(1000);
-
-    y = 0;
-    for(uint i = 0; i < count_of(opcao); i++){
-        ssd1306_draw_string(ssd, 5, y, opcao[i]);
-        y += 8;
-    }
-    render_on_display(ssd, &frame_area);
-
-    sleep_ms(100);
-
-
-    // Configuração de interrupções
-    gpio_set_irq_enabled_with_callback(btnA_pin, GPIO_IRQ_EDGE_FALL, true, &gpio_callback_btn);
-    gpio_set_irq_enabled_with_callback(btnB_pin, GPIO_IRQ_EDGE_FALL, true, &gpio_callback_btn);
-    gpio_set_irq_enabled_with_callback(btn_joy_pin, GPIO_IRQ_EDGE_FALL, true, &gpio_callback_btn);
     
+
+
+    // LAÇO PRINCIPAL
     while (true) {
-        // Inicializa a semente do gerador de numeros aleatórios
-        srand(time(NULL));
+        // inicia com o led vermelho acesso para mostrar que não comecou a partida
+        gpio_put(led_red_pin, 1);
+        gpio_put(led_green_pin, 0);
+
+        // Imprimir a mensagem de inicio
+        int y = 0;
+        for (uint i = 0; i < count_of(inicio); i++)
+        {
+            ssd1306_draw_string(ssd, 5, y, inicio[i]);
+            y += 8;
+        }
+        render_on_display(ssd, &frame_area);
+
+        sleep_ms(2000);
+        
+        // Mensagem pra apertar o joy
+        y = 0;
+        for (uint i = 0; i < count_of(aperte); i++)
+        {
+            ssd1306_draw_string(ssd, 5, y, aperte[i]);
+            y += 8;
+        }
+        render_on_display(ssd, &frame_area);
+
+        // só vai passar do laço se clicar no botão
+        while(!ler_btn_com_debounce(btn_joy_pin)){
+            sleep_ms(100);  // pra não sobrecarregar
+        }
+
+        // Led fica verde para mostrar que o jogo começou
+        gpio_put(led_red_pin, 0);
+        gpio_put(led_green_pin, 1);
+
+        // Iniciar a matriz de leds com o zero
+        contador = 0;
+        imprimir_desenho(*numeros[contador], pio, sm);
+
+        // Mensagem de partida iniciada
+        y = 0;
+        for(uint i = 0; i < count_of(iniciado); i++){
+            ssd1306_draw_string(ssd, 5, y, iniciado[i]);
+            y += 8;
+        }
+        render_on_display(ssd, &frame_area);
+        beep_inicio();
+
+        sleep_ms(2000);
+
+        // quando apertar o botão, sortear o numero, mostrar as mensagens e tocar o som
         numero_sorteado = rand() % 10;
-        printf("Numero sorteado: %d\n", numero_sorteado);
-        sleep_ms(1000);
-    }
-}
 
-
-
-// Funções
-
-void gpio_callback_btn(uint gpio, uint32_t events){
-    uint32_t current_time = to_ms_since_boot(get_absolute_time());
-
-    // Inicialização do i2c
-    i2c_init(i2c1, ssd1306_i2c_clock * 1000);
-    gpio_set_function(I2C_SDA, GPIO_FUNC_I2C);
-    gpio_set_function(I2C_SCL, GPIO_FUNC_I2C);
-    gpio_pull_up(I2C_SDA);
-    gpio_pull_up(I2C_SCL);
-
-    // Processo de inicialização completo do OLED SSD1306
-    ssd1306_init();
-
-    // Preparar área de renderização para o display (ssd1306_width pixels por ssd1306_n_pages páginas)
-    struct render_area frame_area = {
-        start_column : 0,
-        end_column : ssd1306_width - 1,
-        start_page : 0,
-        end_page : ssd1306_n_pages - 1
-    };
-
-    calculate_render_area_buffer_length(&frame_area);
-
-    // zera o display inteiro
-    uint8_t ssd[ssd1306_buffer_length];
-    memset(ssd, 0, ssd1306_buffer_length);
-    render_on_display(ssd, &frame_area);
-
-    // debounce de 200 ms btn A
-    if(gpio == btnA_pin && (current_time - last_time_a) > 200){
-        last_time_a = current_time;
-        contador = (contador + 1) % 10;     // Incrementa o contador
-
-    }
-    // debounce de 200 ms btn B
-    else if(gpio == btnB_pin && (current_time - last_time_b) > 200){
-        last_time_b = current_time;
-        contador = (contador == 0) ? 9 : (contador - 1);    // Decrementa o contador
-    }
-    // debounce de 200 ms btn joy
-    else if(gpio == btn_joy_pin && (current_time - last_time_joy) > 200){
-        last_time_joy = current_time;
-
-        // verifica se o numero é igual ao numero sorteado
-        if(numero_sorteado == contador){
-            printf("PArabens, ganhou\n");
-            ssd1306_draw_string(ssd, 22, 32, "GANHOU");
-            render_on_display(ssd, &frame_area);
+        y = 0;
+        for(uint i = 0; i < count_of(sorteio); i++){
+            ssd1306_draw_string(ssd, 5, y, sorteio[i]);
+            y += 8;
         }
-        else{
-            printf("PERDEU\n");
-            ssd1306_draw_string(ssd, 22, 32, "PERDEU");
-            render_on_display(ssd, &frame_area);
+        render_on_display(ssd, &frame_area);
+
+        sleep_ms(2000);
+
+        // Mensagem de orientação dos botões
+        y = 0;
+        for(uint i = 0; i < count_of(aperteA); i++){
+            ssd1306_draw_string(ssd, 5, y, aperteA[i]);
+            y += 8;
         }
+        render_on_display(ssd, &frame_area);
+
+        // Laço para implementar a lógica
+        while(true){
+            // verificando se clicou no botão A
+            if(ler_btn_com_debounce(btnA_pin)){
+                contador = (contador + 1) % 10; // incrementa a matriz de led
+                sleep_ms(100);
+            }
+
+            // Imprimindo os numeros na matriz de leds
+            imprimir_desenho(*numeros[contador], pio, sm);
+
+            // Verificando se clicou no botão B
+            if(ler_btn_com_debounce(btnB_pin)){
+
+                // Verificando se o numero escolhido quando clicou no B  é igual ao numero sorteado
+                if(numero_sorteado == contador){
+                    // se for igual, mostra os parabens e tocar a musica de vitória
+
+                    // Imprime uma carinha feliz nos leds
+                    imprimir_desenho(carinha_feliz, pio, sm);
+
+                    // Imprime a mensagem que ganhou
+                    int y = 0;
+                    for(uint i = 0; i < count_of(acertou); i++){
+                        ssd1306_draw_string(ssd, 5, y, acertou[i]);
+                        y += 8;
+                    }
+                    render_on_display(ssd, &frame_area);
+
+                    beep_vitoria();
+
+                    printf("VOCE GANHOU\n");
+                    sleep_ms(2000);
+                    break;
+
+                }
+                else if (contador > numero_sorteado){
+
+                    // toca o tom do erro
+                    beep_erro();
+
+                    // Imprime a mensagem que é o numero é menor
+                    int y = 0;
+                    for(uint i = 0; i < count_of(menor); i++){
+                        ssd1306_draw_string(ssd, 5, y, menor[i]);
+                        y += 8;
+                    }
+                    render_on_display(ssd, &frame_area);
+                    
+                    // Os leds ficam vermelhos
+                    imprimir_desenho(vermelho, pio, sm);
+                    sleep_ms(300);
+                    imprimir_desenho(clear, pio, sm);
+
+                    printf("NUMERO MENOR\n");
+                }
+                else{
+                    // tocar tom erro
+                    beep_erro();
+
+                    // Imprime a mensagem que é o numero é menor
+                    int y = 0;
+                    for(uint i = 0; i < count_of(maior); i++){
+                        ssd1306_draw_string(ssd, 5, y, maior[i]);
+                        y += 8;
+                    }
+                    render_on_display(ssd, &frame_area);
+                    
+                    // Os leds ficam vermelhos
+                    imprimir_desenho(vermelho, pio, sm);
+                    sleep_ms(300);
+                    imprimir_desenho(clear, pio, sm);
+
+                    printf("NUMERO MAIOR\n");
+                }
+
+                sleep_ms(100);
+            }
+        }
+
+
+
+        sleep_ms(100);
+    }
+}   // ============================== FIM MAIN ===========================
+
+
+// Corpos das funções
+
+void tocar_tom(uint16_t frequencia, uint16_t duracao){
+    if(frequencia == 0){
+        pwm_set_enabled(pwm_gpio_to_slice_num(buzzerA_pin), false);
+        sleep_ms(duracao);
+        return;
     }
 
-    imprimir_desenho(*numeros[contador], pio, sm);
+    uint slice_num = pwm_gpio_to_slice_num(buzzerA_pin);
+    float clock_div = 4.0f;
+    uint32_t wrap = (125000000 / (clock_div * frequencia)) - 1;
+
+    pwm_set_clkdiv(slice_num, clock_div);
+    pwm_set_wrap(slice_num, wrap);
+    pwm_set_gpio_level(buzzerA_pin, wrap / 2);
+    
+    pwm_set_enabled(slice_num, true);
+    sleep_ms(duracao);
+    pwm_set_enabled(slice_num, false);
 }
