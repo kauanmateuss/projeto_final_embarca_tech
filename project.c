@@ -381,6 +381,7 @@ int main()
 
     // LAÇO PRINCIPAL
     while (true) {
+        srand(time(NULL));
         // inicia com o led vermelho acesso para mostrar que não comecou a partida
         gpio_put(led_red_pin, 1);
         gpio_put(led_green_pin, 0);
@@ -430,6 +431,7 @@ int main()
         sleep_ms(2000);
 
         // quando apertar o botão, sortear o numero, mostrar as mensagens e tocar o som
+        numero_sorteado = rand() % 10;
         numero_sorteado = rand() % 10;
 
         y = 0;
