@@ -16,6 +16,8 @@
 #define btn_joy_pin 22
 #define led_red_pin 13
 #define led_green_pin 11
+#define btnB_pin 6
+#define btnA_pin 5
 
 PIO pio;
 uint sm;
